@@ -1,15 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Channel } from '@tauri-apps/api/core'
 import {
   Alert, Button, Chip, createTheme, CssBaseline, Dialog, DialogActions, DialogContent, DialogTitle, IconButton,
   LinearProgress, MenuItem, Select, Snackbar, Tab, Tabs, TextField, ThemeProvider, Tooltip,
 } from '@mui/material'
 import AppsIcon from '@mui/icons-material/AppsRounded'
-import DarkIcon from '@mui/icons-material/DarkModeOutlined'
 import OverviewIcon from '@mui/icons-material/DashboardOutlined'
 import HistoryIcon from '@mui/icons-material/HistoryRounded'
 import InstallIcon from '@mui/icons-material/InstallMobileRounded'
-import LightIcon from '@mui/icons-material/LightModeOutlined'
 import PhoneIcon from '@mui/icons-material/PhoneAndroidRounded'
 import RefreshIcon from '@mui/icons-material/RefreshRounded'
 import AdbIcon from '@mui/icons-material/UsbRounded'
@@ -34,37 +32,32 @@ type Confirm = { title: string; description: string; label: string; danger?: boo
 type JobResult = { entries: Entry[]; stopped: boolean }
 type JobProgress = { count: number; total: number; latest: string }
 
-function appTheme(mode: 'light' | 'dark') {
-  const dark = mode === 'dark'
-  return createTheme({
-    palette: {
-      mode,
-      primary: { main: dark ? '#a3e8be' : '#235c40', contrastText: dark ? '#14231a' : '#ffffff' },
-      success: { main: dark ? '#9cdfb3' : '#23653b' },
-      warning: { main: dark ? '#efc58b' : '#8c540f' },
-      error: { main: dark ? '#ffaaa3' : '#aa302e' },
-      background: { default: dark ? '#121212' : '#f7f7f5', paper: dark ? '#1b1b1b' : '#ffffff' },
-      text: { primary: dark ? '#f3f3f2' : '#171717', secondary: dark ? '#b4b5b2' : '#535550' },
-      divider: dark ? '#323330' : '#dedfdb',
+const theme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: { main: '#a3e8be', contrastText: '#14231a' },
+    success: { main: '#9cdfb3' },
+    warning: { main: '#efc58b' },
+    error: { main: '#ffaaa3' },
+    background: { default: '#121212', paper: '#1b1b1b' },
+    text: { primary: '#f3f3f2', secondary: '#b4b5b2' },
+    divider: '#323330',
+  },
+  typography: { fontFamily: 'Roboto, system-ui, sans-serif', button: { textTransform: 'none', fontWeight: 500 } },
+  shape: { borderRadius: 10 },
+  components: {
+    MuiButton: {
+      defaultProps: { disableElevation: true },
+      styleOverrides: { root: { minHeight: 35 }, outlined: { borderColor: '#454744' } },
     },
-    typography: { fontFamily: 'Roboto, system-ui, sans-serif', button: { textTransform: 'none', fontWeight: 500 } },
-    shape: { borderRadius: 10 },
-    components: {
-      MuiButton: {
-        defaultProps: { disableElevation: true },
-        styleOverrides: { root: { minHeight: 35 }, outlined: { borderColor: dark ? '#454744' : '#bbbfba' } },
-      },
-      MuiDialog: { styleOverrides: { paper: { borderRadius: 19, backgroundImage: 'none' } } },
-      MuiTableCell: {
-        styleOverrides: { root: { paddingBlock: 8 }, head: { color: dark ? '#b4b5b2' : '#535550', fontSize: '.78rem' } },
-      },
+    MuiDialog: { styleOverrides: { paper: { borderRadius: 19, backgroundImage: 'none' } } },
+    MuiTableCell: {
+      styleOverrides: { root: { paddingBlock: 8 }, head: { color: '#b4b5b2', fontSize: '.78rem' } },
     },
-  })
-}
+  },
+})
 
 export default function App() {
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => localStorage.getItem('xiaomi-debloat-theme') === 'light' ? 'light' : 'dark')
-  const theme = useMemo(() => appTheme(themeMode), [themeMode])
   const [page, setPage] = useState<Page>('overview')
   const [list, setList] = useState<DeviceList | null>(null)
   const [transport, setTransport] = useState<number | null>(null)
@@ -96,11 +89,6 @@ export default function App() {
   const snap = readyState && loaded?.transport === transport && !userChanged ? loaded.snap : null
   const selection: Selection | null = snap && transport !== null ? { transport, identity: snap.info.identity } : null
   const historyIdentity = scoped ? snap?.info.identity ?? null : null
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = themeMode
-    localStorage.setItem('xiaomi-debloat-theme', themeMode)
-  }, [themeMode])
 
   useEffect(() => { selectedTransport.current = transport }, [transport])
 
@@ -327,7 +315,7 @@ export default function App() {
             onClick={() => openPage(item.id)}><item.icon fontSize="small" /><span className="nav-label">{item.label}</span></Button>)}
         </nav>
         <div className="sidebar-bottom">
-          <Tooltip title={list?.adbPath || 'Select the official adb.exe'}>
+          <Tooltip title={list?.adbPath || 'Select the ADB executable'}>
             <Button className="nav-item" aria-label="ADB setup" disabled={disabled} onClick={chooseAdb}><AdbIcon fontSize="small" /><span className="nav-label">ADB setup</span></Button>
           </Tooltip>
           <div className="health"><span className={`dot ${list?.adbPath && !list.error ? 'good' : 'warn'}`} />
@@ -355,10 +343,6 @@ export default function App() {
             <IconButton size="small" aria-label="Refresh devices and inventory" disabled={disabled} onClick={refresh}><RefreshIcon fontSize="small" /></IconButton>
           </span></Tooltip>
           <Button size="small" startIcon={<WifiIcon fontSize="small" />} color="inherit" disabled={disabled} onClick={() => setWireless(true)}>Wireless</Button>
-          <Tooltip title={themeMode === 'dark' ? 'Use light theme' : 'Use dark theme'}>
-            <IconButton size="small" aria-label={themeMode === 'dark' ? 'Use light theme' : 'Use dark theme'}
-              onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}>{themeMode === 'dark' ? <LightIcon fontSize="small" /> : <DarkIcon fontSize="small" />}</IconButton>
-          </Tooltip>
         </div>
       </header>
       <main className="main">

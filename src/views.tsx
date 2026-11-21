@@ -95,9 +95,9 @@ export function Overview({ snap, device, readyCount, hasAdb, error, loading, bus
           </section>
           <section className="panel panel-pad">
             <div className="section-head"><h2>Android Platform-Tools</h2><span className={hasAdb ? 'dot good' : 'dot warn'} /></div>
-            <p className="muted small">{hasAdb ? 'ADB is ready. You can switch to another Platform-Tools installation.' : 'Download and extract the Windows Platform-Tools, then select adb.exe.'}</p>
+            <p className="muted small">{hasAdb ? 'ADB is ready. You can switch to another Platform-Tools installation.' : 'Download and extract Platform-Tools for your OS, then select the ADB executable.'}</p>
             <div className="actions">
-              <Button variant="outlined" disabled={busy} onClick={onAdb}>Choose adb.exe</Button>
+              <Button variant="outlined" disabled={busy} onClick={onAdb}>Choose ADB</Button>
               <Button onClick={() => onGuide('platform-tools')}>Download</Button>
             </div>
           </section>

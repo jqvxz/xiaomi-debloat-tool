@@ -146,21 +146,40 @@ fn read_pipe(pipe: impl Read + Send + 'static) -> thread::JoinHandle<Vec<u8>> {
     })
 }
 
+pub const ADB_FILENAME: &str = if cfg!(windows) { "adb.exe" } else { "adb" };
+
 pub fn find_adb() -> Option<PathBuf> {
     let sdk_paths = ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
         .into_iter()
         .filter_map(env::var_os)
         .map(|dir| PathBuf::from(dir).join("platform-tools"));
-    let local_sdk = env::var_os("LOCALAPPDATA")
-        .map(|dir| PathBuf::from(dir).join("Android/SDK/platform-tools"));
+    let local_sdk = if cfg!(windows) {
+        env::var_os("LOCALAPPDATA").map(|dir| PathBuf::from(dir).join("Android/SDK/platform-tools"))
+    } else {
+        env::var_os("HOME").map(|dir| PathBuf::from(dir).join("Android/Sdk/platform-tools"))
+    };
     env::var_os("PATH")
         .iter()
         .flat_map(env::split_paths)
         .chain(sdk_paths)
         .chain(local_sdk)
         .filter(|dir| dir.is_absolute())
-        .map(|dir| dir.join("adb.exe"))
-        .find(|path| path.is_file())
+        .map(|dir| dir.join(ADB_FILENAME))
+        .find(|path| is_executable(path))
+}
+
+pub fn is_executable(path: &Path) -> bool {
+    let Ok(metadata) = path.metadata() else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return false;
+        }
+    }
+    metadata.is_file()
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -791,6 +810,20 @@ fn core_package(id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn ignores_non_executable_adb_files() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(ADB_FILENAME);
+        std::fs::write(&path, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(!is_executable(&path));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(is_executable(&path));
+    }
 
     #[test]
     fn parses_ready_and_unauthorized_transports() {

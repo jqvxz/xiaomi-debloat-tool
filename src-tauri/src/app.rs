@@ -45,15 +45,19 @@ impl AppState {
             .store
             .preference("adb")?
             .map(PathBuf::from)
-            .filter(|path| path.is_file());
+            .filter(|path| adb::is_executable(path));
         Ok(configured
             .or_else(adb::find_adb)
             .map(|path| Adb::new(path, Arc::clone(&self.runner))))
     }
 
     fn require_adb(&self) -> Result<Adb> {
-        self.adb()?
-            .ok_or_else(|| "Choose adb.exe from Google Android Platform-Tools first.".into())
+        self.adb()?.ok_or_else(|| {
+            format!(
+                "Choose {} from Android Platform-Tools first.",
+                adb::ADB_FILENAME
+            )
+        })
     }
 
     fn start_job(&self) -> Result<MutexGuard<'_, ()>> {
@@ -149,27 +153,31 @@ async fn device_list(app: AppHandle, active_transport: Option<u32>) -> Result<De
 async fn configure_adb(app: AppHandle) -> Result<bool> {
     worker(app, |app, state| {
         let _job = state.start_job()?;
-        let Some(path) = app
-            .dialog()
-            .file()
-            .set_title("Select the Android Platform-Tools adb.exe")
-            .add_filter("Windows executable", &["exe"])
-            .blocking_pick_file()
-        else {
+        let dialog = app.dialog().file().set_title(format!(
+            "Select the Android Platform-Tools {}",
+            adb::ADB_FILENAME
+        ));
+        #[cfg(windows)]
+        let dialog = dialog.add_filter("Windows executable", &["exe"]);
+        let Some(path) = dialog.blocking_pick_file() else {
             return Ok(false);
         };
-        let path = path
-            .into_path()
-            .map_err(|e| e.to_string())?
-            .canonicalize()
-            .map_err(|e| e.to_string())?;
-        if !path
+        let path = path.into_path().map_err(|e| e.to_string())?;
+        let expected_name = path
             .file_name()
             .and_then(|name| name.to_str())
-            .is_some_and(|name| name.eq_ignore_ascii_case("adb.exe"))
-            || !path.is_file()
-        {
-            return Err("Select adb.exe from the official Android Platform-Tools folder.".into());
+            .is_some_and(|name| {
+                if cfg!(windows) {
+                    name.eq_ignore_ascii_case(adb::ADB_FILENAME)
+                } else {
+                    name == adb::ADB_FILENAME
+                }
+            });
+        if !path.is_absolute() || !expected_name || !adb::is_executable(&path) {
+            return Err(format!(
+                "Select the {} executable from Android Platform-Tools.",
+                adb::ADB_FILENAME
+            ));
         }
         let adb = Adb::new(path.clone(), Arc::clone(&state.runner));
         if !adb

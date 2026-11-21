@@ -14,7 +14,7 @@ Describe what you expected and what happened instead.
 
 ## Environment
 
-- App version and Windows version
+- App version and Windows or Linux version
 - Phone model and Android or HyperOS version
 - Connection method (USB or wireless)
 

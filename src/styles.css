@@ -18,21 +18,8 @@
   --danger: #ffaaa3;
 }
 
-:root[data-theme="light"] {
-  --base: #f7f7f5;
-  --sidebar: #fdfdfc;
-  --surface: #ffffff;
-  --selected: #e9ede8;
-  --line: #dedfdb;
-  --ink: #171717;
-  --muted: #535550;
-  --subtle: #666a64;
-  --accent: #235c40;
-  --accent-ink: #ffffff;
-  --warn: #8c540f;
-  --danger: #aa302e;
-}
-
+html, .MuiDialogContent-root { scrollbar-width: none; }
+html::-webkit-scrollbar, .MuiDialogContent-root::-webkit-scrollbar { display: none; }
 body { margin: 0; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

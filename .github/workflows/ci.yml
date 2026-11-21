@@ -1,4 +1,4 @@
-name: Windows checks
+name: Desktop checks and installers
 
 on: [push, pull_request]
 
@@ -6,9 +6,19 @@ permissions:
   contents: read
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 20
+  desktop:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: windows-x64
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact: linux-x64
     steps:
       - uses: actions/checkout@v6
         with:
@@ -17,7 +27,53 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Install Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf xvfb xdotool
       - run: npm ci
-      - run: npm run build
-      - run: rustup toolchain install stable-x86_64-pc-windows-msvc --profile minimal
-      - run: cargo +stable-x86_64-pc-windows-msvc test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+      - run: rustup toolchain install stable --profile minimal
+      - name: Build installers
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: npm run tauri -- build --ci --target ${{ matrix.target }}
+      - name: Test Rust backend
+        run: cargo +stable test --release --locked --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }}
+      - name: Smoke test Linux bundles
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          shopt -s nullglob
+          bundles="$PWD/src-tauri/target/${{ matrix.target }}/release/bundle"
+          packages=("$bundles"/deb/*.deb)
+          images=("$bundles"/appimage/*.AppImage)
+          test "${#packages[@]}" = 1
+          test "${#images[@]}" = 1
+          sudo apt-get install -y "${packages[0]}"
+
+          smoke() {
+            dbus-run-session -- xvfb-run -a bash -eu -c '
+              "$1" >"$2" 2>&1 & pid=$!
+              trap "kill $pid 2>/dev/null || true" EXIT
+              if ! timeout 30 xdotool search --sync --onlyvisible --name "^Xiaomi Debloat Tool$"; then
+                cat "$2"
+                exit 1
+              fi
+              kill -0 "$pid"
+            ' _ "$1" "$RUNNER_TEMP/linux-smoke.log"
+          }
+
+          smoke "$(command -v xiaomi-debloat-tool)"
+          smoke "${images[0]}"
+      - name: Upload installers
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
